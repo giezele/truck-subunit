@@ -32,7 +32,35 @@ class TruckSubunitService
             throw new Exception("The subunit truck is already a subunit for another truck during these dates.");
         }
 
+        // Prevent a truck from acting as a main truck if it is already a subunit for another truck during this period
+        if ($this->hasSubunitConflict($data['main_truck'], $startDate, $endDate)) {
+            throw new Exception("This truck is already a subunit for another truck during this period and cannot have a subunit.");
+        }
+
         return TruckSubunit::create($data);
+    }
+
+    /**
+     * @param int $truckId
+     * @param string $startDate
+     * @param string $endDate
+     * @return bool
+     */
+    public function hasSubunitConflict(int $truckId, string $startDate, string $endDate): bool
+    {
+        return TruckSubunit::where('subunit', $truckId)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $startDateTime = Carbon::parse($startDate)->startOfDay();
+                $endDateTime = Carbon::parse($endDate)->endOfDay();
+
+                $query->whereBetween('start_date', [$startDateTime, $endDateTime])
+                    ->orWhereBetween('end_date', [$startDateTime, $endDateTime])
+                    ->orWhere(function ($query) use ($startDateTime, $endDateTime) {
+                        $query->where('start_date', '<=', $startDateTime)
+                            ->where('end_date', '>=', $endDateTime);
+                    });
+            })
+            ->exists();
     }
 
     /**

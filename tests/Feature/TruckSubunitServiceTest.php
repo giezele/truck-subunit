@@ -78,7 +78,7 @@ class TruckSubunitServiceTest extends TestCase
 
         $data = [
             'main_truck' => $mainTruck->id,
-            'subunit' => Truck::factory()->create()->id, // Another subunit truck
+            'subunit' => Truck::factory()->create()->id,
             'start_date' => '2024-10-01',  // Overlapping with existing subunit
             'end_date' => '2024-10-15',
         ];
@@ -114,5 +114,45 @@ class TruckSubunitServiceTest extends TestCase
         $this->expectExceptionMessage('The subunit truck is already a subunit for another truck during these dates.');
 
         $this->truckSubunitService->createSubunit($data);
+    }
+
+    #[Test]
+    public function it_identifies_subunit_conflict_for_a_truck(): void
+    {
+        $mainTruck = Truck::factory()->create();
+        $subunitTruck = Truck::factory()->create();
+
+        TruckSubunit::factory()->create([
+            'main_truck' => $mainTruck->id,
+            'subunit' => $subunitTruck->id,
+            'start_date' => '2023-04-01',
+            'end_date' => '2023-04-10',
+        ]);
+
+        // Check if the subunit truck has a conflict when trying to assign it again within the same date range
+        $hasConflict = $this->truckSubunitService->hasSubunitConflict($subunitTruck->id, '2023-04-05', '2023-04-08');
+
+        // Assert that there is a conflict
+        $this->assertTrue($hasConflict);
+    }
+
+    #[Test]
+    public function it_does_not_identify_subunit_conflict_outside_of_the_date_range(): void
+    {
+        $mainTruck = Truck::factory()->create();
+        $subunitTruck = Truck::factory()->create();
+
+        TruckSubunit::factory()->create([
+            'main_truck' => $mainTruck->id,
+            'subunit' => $subunitTruck->id,
+            'start_date' => '2023-04-01',
+            'end_date' => '2023-04-10',
+        ]);
+
+        // Check if the subunit truck has a conflict when trying to assign it outside the date range
+        $hasConflict = $this->truckSubunitService->hasSubunitConflict($subunitTruck->id, '2023-04-11', '2023-04-15');
+
+        // Assert that there is no conflict
+        $this->assertFalse($hasConflict);
     }
 }
