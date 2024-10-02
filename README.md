@@ -1,4 +1,4 @@
-## Truck-Subunit Backend
+# Truck-Subunit Backend
 
 This is a Laravel-Based Backend for managing trucks and subunits with a set of RESTful endpoints. 
 ## Requirements
@@ -59,10 +59,6 @@ This is a Laravel-Based Backend for managing trucks and subunits with a set of R
     docker compose exec php bash
     ```
 
-3. **Run the queue worker**:
-    ```bash
-    php artisan queue:work
-    ```
 ## Testing
 
 - **Feature Tests**: The project includes feature tests for CRUD operations on trucks and the assignment of subunits. These tests ensure that the application’s functionality works as expected. You can run the tests using:
