@@ -61,9 +61,10 @@ This is a Laravel-Based Backend for managing trucks and subunits with a set of R
 
 ## Testing
 
-- **Feature Tests**: The project includes feature tests for CRUD operations on trucks and the assignment of subunits. These tests ensure that the application’s functionality works as expected. You can run the tests using:
+**Feature Tests**: The project includes feature tests for CRUD operations on trucks and the assignment of subunits. These tests ensure that the application’s functionality works as expected. You can run the tests using:
    ```bash
    ./vendor/bin/sail test
+```
 
 ## Endpoints for Testing with Postman
 
