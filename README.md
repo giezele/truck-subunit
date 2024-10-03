@@ -20,11 +20,11 @@ This is a Laravel-Based Backend for managing trucks and subunits with a set of R
     cp .env.example .env
     ```
     - Set your database credentials in the `.env` file:
-      ```env
+    ```env
       DB_DATABASE={your db name}
       DB_USERNAME={your username}
       DB_PASSWORD={your password}
-      ```
+    ```
 
 3. **Use Docker to run `composer install` via Laravel Sail**:
     ```bash
