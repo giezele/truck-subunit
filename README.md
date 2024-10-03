@@ -26,26 +26,24 @@ This is a Laravel-Based Backend for managing trucks and subunits with a set of R
       DB_PASSWORD={your password}
       ```
 
-3. **Build and run Docker containers**:
+3. **Use Docker to run `composer install` via Laravel Sail**:
     ```bash
-    docker compose up -d --build
+    docker run --rm -u "$(id -u):$(id -g)" -v $(pwd):/var/www/html -w /var/www/html laravelsail/php82-composer:latest composer install
     ```
 
-4. **Set appropriate permissions**:
+4. **Start the Sail environment**:
     ```bash
-    docker compose exec php bash
-    chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-    chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+    ./vendor/bin/sail up -d --build
     ```
 
-5. **Install dependencies**:
+5. **Run migrations**:
     ```bash
-    composer install
+    ./vendor/bin/sail artisan migrate
     ```
 
-6. **Run migrations**:
+6. **To access the Sail container's shell** (optional for artisan commands):
     ```bash
-    php artisan migrate
+    ./vendor/bin/sail shell
     ```
 
 ### For Subsequent Launches:
@@ -54,9 +52,9 @@ This is a Laravel-Based Backend for managing trucks and subunits with a set of R
     docker compose up -d
     ```
 
-2. **Access the PHP container** (optional for artisan commands):
+2. **To access the Sail container's shell** (optional for artisan commands):
     ```bash
-    docker compose exec php bash
+    ./vendor/bin/sail shell
     ```
 
 ## Testing
