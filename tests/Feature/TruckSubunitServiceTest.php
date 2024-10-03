@@ -4,28 +4,14 @@ namespace Tests\Feature;
 
 use App\Models\Truck;
 use App\Models\TruckSubunit;
-use App\Services\TruckSubunitService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Carbon;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
-use Exception;
 
 class TruckSubunitServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected TruckSubunitService $truckSubunitService;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->truckSubunitService = new TruckSubunitService();
-    }
-
-    /**
-     * @throws Exception
-     */
     #[Test]
     public function it_can_create_a_subunit(): void
     {
@@ -39,9 +25,9 @@ class TruckSubunitServiceTest extends TestCase
             'end_date' => '2024-10-10',
         ];
 
-        $subunit = $this->truckSubunitService->createSubunit($data);
+        $response = $this->postJson('/api/truck-subunits', $data);
 
-        $this->assertInstanceOf(TruckSubunit::class, $subunit);
+        $response->assertStatus(201);
         $this->assertDatabaseHas('truck_subunits', $data);
     }
 
@@ -57,10 +43,11 @@ class TruckSubunitServiceTest extends TestCase
             'end_date' => '2024-10-10',
         ];
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('A truck cannot be its own subunit.');
+        // Expect an error when trying to assign the same truck as a subunit
+        $response = $this->postJson('/api/truck-subunits', $data);
 
-        $this->truckSubunitService->createSubunit($data);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('subunit');
     }
 
     #[Test]
@@ -79,14 +66,15 @@ class TruckSubunitServiceTest extends TestCase
         $data = [
             'main_truck' => $mainTruck->id,
             'subunit' => Truck::factory()->create()->id,
-            'start_date' => '2024-10-01',  // Overlapping with existing subunit
+            'start_date' => '2024-10-01',
             'end_date' => '2024-10-15',
         ];
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('The dates for the subunit overlap with an existing subunit for the main truck.');
+        // Expect exception when the dates overlap for the main truck
+        $response = $this->postJson('/api/truck-subunits', $data);
 
-        $this->truckSubunitService->createSubunit($data);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('subunit');
     }
 
     #[Test]
@@ -95,7 +83,6 @@ class TruckSubunitServiceTest extends TestCase
         $mainTruck = Truck::factory()->create();
         $subunitTruck = Truck::factory()->create();
 
-        // Create an existing subunit where the subunit truck is already busy
         TruckSubunit::factory()->create([
             'main_truck' => $mainTruck->id,
             'subunit' => $subunitTruck->id,
@@ -104,16 +91,17 @@ class TruckSubunitServiceTest extends TestCase
         ]);
 
         $data = [
-            'main_truck' => Truck::factory()->create()->id, // Another main truck
-            'subunit' => $subunitTruck->id, // Same subunit truck
+            'main_truck' => Truck::factory()->create()->id,
+            'subunit' => $subunitTruck->id,
             'start_date' => '2024-10-01',
             'end_date' => '2024-10-15',
         ];
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('The subunit truck is already a subunit for another truck during these dates.');
+        // expect exception due to overlapping dates
+        $response = $this->postJson('/api/truck-subunits', $data);
 
-        $this->truckSubunitService->createSubunit($data);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('subunit');
     }
 
     #[Test]
@@ -129,11 +117,16 @@ class TruckSubunitServiceTest extends TestCase
             'end_date' => '2023-04-10',
         ]);
 
-        // Check if the subunit truck has a conflict when trying to assign it again within the same date range
-        $hasConflict = $this->truckSubunitService->hasSubunitConflict($subunitTruck->id, '2023-04-05', '2023-04-08');
+        // Expect conflict due to overlapping date
+        $response = $this->postJson('/api/truck-subunits', [
+            'main_truck' => Truck::factory()->create()->id,
+            'subunit' => $subunitTruck->id,
+            'start_date' => '2023-04-05',
+            'end_date' => '2023-04-08',
+        ]);
 
-        // Assert that there is a conflict
-        $this->assertTrue($hasConflict);
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('subunit');
     }
 
     #[Test]
@@ -149,10 +142,40 @@ class TruckSubunitServiceTest extends TestCase
             'end_date' => '2023-04-10',
         ]);
 
-        // Check if the subunit truck has a conflict when trying to assign it outside the date range
-        $hasConflict = $this->truckSubunitService->hasSubunitConflict($subunitTruck->id, '2023-04-11', '2023-04-15');
+        // Assign a new subunit not overlapping date range
+        $response = $this->postJson('/api/truck-subunits', [
+            'main_truck' => Truck::factory()->create()->id,
+            'subunit' => $subunitTruck->id,
+            'start_date' => '2023-04-11',
+            'end_date' => '2023-04-15',
+        ]);
 
-        // Assert that there is no conflict
-        $this->assertFalse($hasConflict);
+        $response->assertStatus(201);
+    }
+
+    #[Test]
+    public function it_cannot_assign_a_truck_as_a_main_truck_when_it_is_already_a_subunit(): void
+    {
+        $mainTruck = Truck::factory()->create();
+        $subunitTruck = Truck::factory()->create();
+
+        TruckSubunit::factory()->create([
+            'main_truck' => $mainTruck->id,
+            'subunit' => $subunitTruck->id,
+            'start_date' => '2024-10-01',
+            'end_date' => '2024-10-10',
+        ]);
+
+        $data = [
+            'main_truck' => $subunitTruck->id,
+            'subunit' => Truck::factory()->create()->id,
+            'start_date' => '2024-10-05',
+            'end_date' => '2024-10-15',
+        ];
+
+        $response = $this->postJson('/api/truck-subunits', $data);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors('main_truck');
     }
 }

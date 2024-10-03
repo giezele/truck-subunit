@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Truck;
-use App\Services\TruckService;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -12,14 +10,6 @@ use Tests\TestCase;
 class TruckServiceTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected TruckService $truckService;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-        $this->truckService = new TruckService();
-    }
 
     #[Test]
     public function it_can_create_a_truck(): void
@@ -30,9 +20,10 @@ class TruckServiceTest extends TestCase
             'notes' => 'Test truck notes',
         ];
 
-        $truck = $this->truckService->createTruck($data);
+        $response = $this->postJson('/api/trucks', $data);
 
-        $this->assertInstanceOf(Truck::class, $truck);
+        $response->assertStatus(201);
+
         $this->assertDatabaseHas('trucks', $data);
     }
 
@@ -41,10 +32,10 @@ class TruckServiceTest extends TestCase
     {
         Truck::factory()->count(3)->create();
 
-        $trucks = $this->truckService->getAllTrucks();
+        $response = $this->getJson('/api/trucks');
 
-        $this->assertCount(3, $trucks);
-        $this->assertInstanceOf(Collection::class, $trucks);
+        $response->assertStatus(200);
+        $response->assertJsonCount(3);
     }
 
     #[Test]
@@ -62,11 +53,10 @@ class TruckServiceTest extends TestCase
             'notes' => 'Updated truck notes',
         ];
 
-        $updatedTruck = $this->truckService->updateTruck($truck, $data);
+        $response = $this->putJson("/api/trucks/{$truck->id}", $data);
 
-        $this->assertEquals('B5678', $updatedTruck->unit_number);
-        $this->assertEquals(2021, $updatedTruck->year);
-        $this->assertEquals('Updated truck notes', $updatedTruck->notes);
+        $response->assertStatus(200);
+
         $this->assertDatabaseHas('trucks', $data);
     }
 
@@ -79,7 +69,9 @@ class TruckServiceTest extends TestCase
             'notes' => 'Test truck notes',
         ]);
 
-        $this->truckService->deleteTruck($truck);
+        $response = $this->deleteJson("/api/trucks/{$truck->id}");
+
+        $response->assertStatus(204);
 
         $this->assertDatabaseMissing('trucks', [
             'unit_number' => 'A1234',

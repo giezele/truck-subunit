@@ -1,10 +1,10 @@
 <?php
-
 namespace App\Services;
 
 use App\Models\TruckSubunit;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Validation\ValidationException;
 
 class TruckSubunitService
 {
@@ -15,8 +15,8 @@ class TruckSubunitService
      */
     public function createSubunit(array $data): TruckSubunit
     {
-        $startDate = $data['start_date'];
-        $endDate = $data['end_date'];
+        $startDate = Carbon::parse($data['start_date'])->startOfDay();
+        $endDate = Carbon::parse($data['end_date'])->endOfDay();
 
         // Ensure the truck is not assigning itself as a subunit
         if ($data['main_truck'] === $data['subunit']) {
@@ -24,68 +24,72 @@ class TruckSubunitService
         }
 
         // Check for overlapping subunits for both the main truck and subunit truck
-        if ($this->hasOverlappingSubunitDates($data['main_truck'], $startDate, $endDate)) {
-            throw new Exception("The dates for the subunit overlap with an existing subunit for the main truck.");
-        }
+        $this->checkOverlappingDates($data['main_truck'], $startDate, $endDate, false);
+        $this->checkOverlappingDates($data['subunit'], $startDate, $endDate, true);
 
-        if ($this->hasOverlappingSubunitDates($data['subunit'], $startDate, $endDate, true)) {
-            throw new Exception("The subunit truck is already a subunit for another truck during these dates.");
-        }
-
-        // Prevent a truck from acting as a main truck if it is already a subunit for another truck during this period
-        if ($this->hasSubunitConflict($data['main_truck'], $startDate, $endDate)) {
-            throw new Exception("This truck is already a subunit for another truck during this period and cannot have a subunit.");
-        }
+        $this->checkIfTruckIsAlreadySubunit($data['main_truck'], $startDate, $endDate);
 
         return TruckSubunit::create($data);
     }
 
     /**
      * @param int $truckId
-     * @param string $startDate
-     * @param string $endDate
-     * @return bool
+     * @param Carbon $startDate
+     * @param Carbon $endDate
+     * @param bool $isSubunit
+     * @return void
+     * @throws Exception
      */
-    public function hasSubunitConflict(int $truckId, string $startDate, string $endDate): bool
+    private function checkOverlappingDates(int $truckId, Carbon $startDate, Carbon $endDate, bool $isSubunit): void
     {
-        return TruckSubunit::where('subunit', $truckId)
-            ->where(function ($query) use ($startDate, $endDate) {
-                $startDateTime = Carbon::parse($startDate)->startOfDay();
-                $endDateTime = Carbon::parse($endDate)->endOfDay();
+        $column = $isSubunit ? 'subunit' : 'main_truck';
 
-                $query->whereBetween('start_date', [$startDateTime, $endDateTime])
-                    ->orWhereBetween('end_date', [$startDateTime, $endDateTime])
-                    ->orWhere(function ($query) use ($startDateTime, $endDateTime) {
-                        $query->where('start_date', '<=', $startDateTime)
-                            ->where('end_date', '>=', $endDateTime);
+        $conflictExists = TruckSubunit::where($column, $truckId)
+            ->where(function ($query) use ($startDate, $endDate) {
+                $query->whereBetween('start_date', [$startDate, $endDate])
+                    ->orWhereBetween('end_date', [$startDate, $endDate])
+                    ->orWhere(function ($query) use ($startDate, $endDate) {
+                        $query->where('start_date', '<=', $startDate)
+                            ->where('end_date', '>=', $endDate);
                     });
             })
             ->exists();
+
+        if ($conflictExists) {
+            $message = $isSubunit
+                ? "The subunit truck is already a subunit for another truck during these dates."
+                : "The dates for the subunit overlap with an existing subunit for the main truck.";
+
+            throw ValidationException::withMessages([
+                'subunit' => $message,
+            ]);
+        }
     }
 
     /**
      * @param int $truckId
-     * @param string $startDate
-     * @param string $endDate
-     * @param bool $isSubunit
-     * @return bool
+     * @param Carbon $startDate
+     * @param Carbon $endDate
+     * @return void
+     * @throws ValidationException
      */
-    private function hasOverlappingSubunitDates(int $truckId, string $startDate, string $endDate, bool $isSubunit = false): bool
+    private function checkIfTruckIsAlreadySubunit(int $truckId, Carbon $startDate, Carbon $endDate): void
     {
-        $query = TruckSubunit::where($isSubunit ? 'subunit' : 'main_truck', $truckId)
+        $conflictExists = TruckSubunit::where('subunit', $truckId)
             ->where(function ($query) use ($startDate, $endDate) {
-                $startDateTime = Carbon::parse($startDate)->startOfDay();
-                $endDateTime = Carbon::parse($endDate)->endOfDay();
-
-                $query->whereBetween('start_date', [$startDateTime, $endDateTime])
-                    ->orWhereBetween('end_date', [$startDateTime, $endDateTime])
-                    ->orWhere(function ($query) use ($startDateTime, $endDateTime) {
-                        $query->where('start_date', '<=', $startDateTime)
-                            ->where('end_date', '>=', $endDateTime);
+                $query->whereBetween('start_date', [$startDate, $endDate])
+                    ->orWhereBetween('end_date', [$startDate, $endDate])
+                    ->orWhere(function ($query) use ($startDate, $endDate) {
+                        $query->where('start_date', '<=', $startDate)
+                            ->where('end_date', '>=', $endDate);
                     });
-            });
+            })
+            ->exists();
 
-        return $query->exists();
+        if ($conflictExists) {
+            throw ValidationException::withMessages([
+                'main_truck' => "This truck is already a subunit for another truck during this period and cannot be a main truck.",
+            ]);
+        }
     }
 }
-

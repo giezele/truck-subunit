@@ -6,12 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTruckSubunitRequest extends FormRequest
 {
-    public function authorize()
-    {
-        return true;
-    }
-
-    public function rules()
+    public function rules(): array
     {
         return [
             'main_truck' => 'required|exists:trucks,id',
